@@ -1,7 +1,8 @@
 const TransportCost = require('../entity/transport_cost');
 
 async function calculateShortestPathFrom(source, priority) {
-  source.setCost(0, 0);  
+  source.setPrice(0);
+  source.setDistance(0);
   const settledPoints = new Set();
   const unsettledPoints = new Set();
   unsettledPoints.add(source);
@@ -11,8 +12,6 @@ async function calculateShortestPathFrom(source, priority) {
       if (priority === Priority.COST)
         currentPoint = await getLowestPricePoint(unsettledPoints);
       else currentPoint = await getLowestDistancePoint(unsettledPoints);
-
-      console.log(unsettledPoints);
 
       unsettledPoints.delete(currentPoint);
 
@@ -48,12 +47,13 @@ async function getLowestPricePoint(unsettledPoints) {
         lowestCostPoint = point;
       }
     }
+
     return lowestCostPoint;
   }
 
   async function getLowestDistancePoint(unsettledPoints) {
     let lowestDistancePoint = null;
-    let lowestDistance = new TransportCost();
+    let lowestDistance = new TransportCost(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
     for (const point of unsettledPoints) {
       const pointDistance = point.getCost();
       if (pointDistance.distance < lowestDistance.distance) {
@@ -61,6 +61,7 @@ async function getLowestPricePoint(unsettledPoints) {
         lowestDistancePoint = point;
       }
     }
+
     return lowestDistancePoint;
   }
 

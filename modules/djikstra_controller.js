@@ -14,6 +14,7 @@ const PointTransport = require('../entity/point_transport');
 const Path = require('../entity/path');
 const RouteTransport = require('../helper/route_transport');
 const helper = require('../helper/helper');
+const GraphTransport = require('../helper/graph_transport');
 require('buffer');
 
 async function get(req, res) {
@@ -26,7 +27,6 @@ async function get(req, res) {
   let radius = req.query.radius;
 
   const jsonData = await reader.readJsonFileAsString('./data/files.json');
-
   const parsedData = JSON.parse(jsonData);
     const linesData = parsedData.lines.map(lineData => {
       let line =  new Line(
@@ -39,14 +39,16 @@ async function get(req, res) {
         lineData.path
       )
       lineData.path.forEach(element => {
-        let path = new Path(
-          element.idline,
+        let path = new PointTransport(
           element.idpoint,
-          element.sequence,
-          element.stop,
-          element.idinterchange,
           element.lat,
-          element.lng
+          element.lng,
+          element.stop == '1',
+          element.idline,
+          element.name,
+          element.direction,
+          element.color,
+          element.sequence
         )
 
         line.addPointTransport(path);
@@ -58,7 +60,7 @@ async function get(req, res) {
     const interchangesData = parsedData.interchanges.map(interchangeData => new Interchange(
       interchangeData.idinterchange,
       interchangeData.name,
-      interchangeData.pointIds,
+      interchangeData.points.map(pointsData => pointsData.idline),
       interchangeData.points
     ));
 
@@ -83,6 +85,8 @@ async function get(req, res) {
       })
     });
 
+    new GraphTransport().build(linesData, interchangesData);
+
     const LinesClass = { lines: linesData };
     const InterchangesClass = { interchanges: interchangesData };
 
@@ -98,7 +102,6 @@ async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority
   const sources = await getSeveralNearby(sourceLatLng.latitude, sourceLatLng.longitude, radius, pointTransport);
   const destinations = await getSeveralNearby(destinationLatLng.latitude, destinationLatLng.longitude, radius, pointTransport);
 
-  const total = sources.size * destinations.size;
   const paths = [];
   const routeTransports = [];
 
@@ -111,6 +114,7 @@ async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority
         ? destinationPoint.getCheapestPath()
         : destinationPoint.getShortestPath();
 
+      console.log("Haha " + path);
       if (path.length > 0) {
         path.push(destinationPoint);
         paths.push(path);

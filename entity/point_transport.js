@@ -118,9 +118,10 @@ class PointTransport extends Point {
     clearDestination() {
       this.adjacentTransportPoints.clear();
     }
-  
-    setCost(transportCost) {
-      this.transportCost = transportCost;
+
+    setCost(price, distance) {
+      this.transportCost.price = price;
+      this.transportCost.distance = distance;
     }
   
     setDistance(distance) {

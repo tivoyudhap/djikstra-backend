@@ -5,22 +5,24 @@ class GraphTransport {
         for (const line of lines) {
             let prevPoint = null;
             for (const point of line.path) {
-                if (prevPoint === null) {
-                    prevPoint = point;
-                    continue;
-            } else {
-              const distance = calculateDistance(prevPoint, point);
-              const cost = { standardCost: 0, distance };
-              prevPoint.addDestination(point, cost);
-              point.addSource(prevPoint, cost);
-              prevPoint = point;
+              if (prevPoint === null) {
+                  prevPoint = point;
+                  continue;
+              } else {
+                const distance = this.calculateDistance(prevPoint, point);
+                const cost = { standardCost: 0, distance };
+                prevPoint.addDestination(point, cost);
+                point.addSource(prevPoint, cost);
+                prevPoint = point;
+              }
+
+              pointSets.add(point);
             }
-            pointSets.add(point);
-          }
         }
       
         // Assign points to interchanges
         for (const interchange of interchanges) {
+          // console.log("prevPoint :" + interchange);
           for (const point of pointSets) {
             for (const pointId of interchange.pointIds) {
               if (point.id === pointId) interchange.points.push(point);
