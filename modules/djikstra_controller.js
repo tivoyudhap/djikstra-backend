@@ -28,74 +28,74 @@ async function get(req, res) {
 
   const jsonData = await reader.readJsonFileAsString('./data/files.json');
   const parsedData = JSON.parse(jsonData);
-    const linesData = parsedData.lines.map(lineData => {
-      let line =  new Line(
-        lineData.idline,
-        lineData.name,
-        lineData.color,
-        lineData.direction,
-        null,
-        0,
-        lineData.path
+  const linesData = parsedData.lines.map(lineData => {
+    let line = new Line(
+      lineData.idline,
+      lineData.name,
+      lineData.color,
+      lineData.direction,
+      null,
+      0,
+      lineData.path
+    )
+    lineData.path.forEach(element => {
+      let path = new PointTransport(
+        element.idpoint,
+        element.lat,
+        element.lng,
+        element.stop == '1',
+        element.idline,
+        element.name,
+        element.direction,
+        element.color,
+        element.sequence
       )
-      lineData.path.forEach(element => {
-        let path = new PointTransport(
-          element.idpoint,
-          element.lat,
-          element.lng,
-          element.stop == '1',
-          element.idline,
-          element.name,
-          element.direction,
-          element.color,
-          element.sequence
-        )
 
-        line.addPointTransport(path);
-      });
-
-      return line;
+      line.addPointTransport(path);
     });
 
-    const interchangesData = parsedData.interchanges.map(interchangeData => new Interchange(
-      interchangeData.idinterchange,
-      interchangeData.name,
-      interchangeData.points.map(pointsData => pointsData.idline),
-      interchangeData.points
-    ));
+    return line;
+  });
 
-    const pointTransport = [];
-    linesData.forEach(element => {
-      element.path.forEach(elementPath => {
-        let transport = new PointTransport(
-          elementPath.idline,
-          elementPath.lat,
-          elementPath.lng,
-          elementPath.stop,
-          element.idline,
-          element.name,
-          element.direction,
-          element.color,
-          elementPath.sequence,
-          null,
-          null
-        );
+  const interchangesData = parsedData.interchanges.map(interchangeData => new Interchange(
+    interchangeData.idinterchange,
+    interchangeData.name,
+    interchangeData.points.map(pointsData => pointsData.idline),
+    interchangeData.points
+  ));
 
-        pointTransport.push(transport);
-      })
-    });
+  const pointTransport = [];
+  linesData.forEach(element => {
+    element.path.forEach(elementPath => {
+      let transport = new PointTransport(
+        elementPath.idline,
+        elementPath.lat,
+        elementPath.lng,
+        elementPath.stop,
+        element.idline,
+        element.name,
+        element.direction,
+        element.color,
+        elementPath.sequence,
+        null,
+        null
+      );
 
-    new GraphTransport().build(linesData, interchangesData);
+      pointTransport.push(transport);
+    })
+  });
 
-    const LinesClass = { lines: linesData };
-    const InterchangesClass = { interchanges: interchangesData };
+  let points = new GraphTransport().build(linesData, interchangesData);
 
-    let source = new Latlng(sourceLatitude, sourceLongitude);
-    let destination = new Latlng(destinationLatitude, destinationLongitude);
+  const LinesClass = { lines: linesData };
+  const InterchangesClass = { interchanges: interchangesData };
 
-    let route = await calculateRoutes(source, destination, radius, priority, pointTransport);
+  let source = new Latlng(sourceLatitude, sourceLongitude);
+  let destination = new Latlng(destinationLatitude, destinationLongitude);
 
-    return response.ok(route, "Success get values", res);
+  let route = await calculateRoutes(source, destination, radius, priority, points);
+
+  return response.ok(route, "Success get values", res);
 }
 
 async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority, pointTransport) {
@@ -107,14 +107,13 @@ async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority
 
   let progress = 0;
   for (const sourcePoint of sources) {
+    // await DjikstraTransport.calculateShortestPathFrom(sourcePoint, priority);
     for (const destinationPoint of destinations) {
-      DjikstraTransport.calculateShortestPathFrom(sourcePoint, priority);
+      await DjikstraTransport.calculateShortestPathFrom(destinationPoint, priority);
+      const path = priority == "COST"
+        ? await destinationPoint.getCheapestPath()
+        : await destinationPoint.getShortestPath();
 
-      const path = priority === Priority.COST
-        ? destinationPoint.getCheapestPath()
-        : destinationPoint.getShortestPath();
-
-      console.log("Haha " + path);
       if (path.length > 0) {
         path.push(destinationPoint);
         paths.push(path);
@@ -128,7 +127,7 @@ async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority
 
   // Sort the results
   routeTransports.sort((a, b) => {
-    const comparatorType = priority === DjikstraTransport.Priority.COST
+    const comparatorType = priority === "COST"
       ? RouteTransport.ComparatorType.PRICE
       : RouteTransport.ComparatorType.DISTANCE;
     return RouteTransport.getComparator(comparatorType)(a, b);
@@ -138,43 +137,43 @@ async function calculateRoutes(sourceLatLng, destinationLatLng, radius, priority
 }
 
 async function getSeveralNearby(latitude, longitude, radius, pointTransports) {
-    const nearbyPointTransports = new Set();
-  
-    if (!pointTransports) return nearbyPointTransports;
+  const nearbyPointTransports = new Set();
 
-    const pointTransportMap = new Map();
-  
-    for (const point of pointTransports) {
-      const distance = helper.calculateDistance(point, latitude, longitude);
-      if (distance < radius * 0.00000898448) {
-        let exists = false;
-        let existingPoint = null;
-        
-        for (const p of pointTransportMap.keys()) {
-          if (p.getIdLine() === point.getIdLine() && p.getDirection() === point.getDirection()) {
-            exists = true;
-            existingPoint = p;
-          }
+  if (!pointTransports) return nearbyPointTransports;
+
+  const pointTransportMap = new Map();
+
+  for (const point of pointTransports) {
+    const distance = helper.calculateDistance(point, latitude, longitude);
+    if (distance < radius * 0.00000898448) {
+      let exists = false;
+      let existingPoint = null;
+
+      for (const p of pointTransportMap.keys()) {
+        if (p.getIdLine() === point.getIdLine() && p.getDirection() === point.getDirection()) {
+          exists = true;
+          existingPoint = p;
         }
-        
-        if (!exists) {
+      }
+
+      if (!exists) {
+        pointTransportMap.set(point, distance);
+      } else {
+        if (distance < pointTransportMap.get(existingPoint)) {
+          pointTransportMap.delete(existingPoint);
           pointTransportMap.set(point, distance);
-        } else {
-          if (distance < pointTransportMap.get(existingPoint)) {
-            pointTransportMap.delete(existingPoint);
-            pointTransportMap.set(point, distance);
-          }
         }
       }
     }
-  
-    for (const point of pointTransportMap.keys()) {
-      nearbyPointTransports.add(point);
-    }
-  
-    return nearbyPointTransports;
   }
 
+  for (const point of pointTransportMap.keys()) {
+    nearbyPointTransports.add(point);
+  }
+
+  return nearbyPointTransports;
+}
+
 module.exports = {
-    get
+  get
 };
